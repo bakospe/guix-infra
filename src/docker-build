@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -xe
+if [ $# -eq 0 ]; then
+    exit 1
+fi
+DOCKER_TAG=\"$1\"
+if [ $# -eq 1 ]; then
+    SYSTEM_FILEPATH=container.scm
+else
+    SYSTEM_FILEPATH=\"$2\"
+fi
+DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker \"$SYSTEM_FILEPATH\" \"${@:3}\")
+docker load -i \"$DOCKER_IMAGE_TARBALL_FILEPATH\"
+docker tag guix:latest \"$DOCKER_TAG\"
+guix gc -D \"$DOCKER_IMAGE_TARBALL_FILEPATH\"
+

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -xe
+sudo mkdir -p \
+    /etc/letsencrypt \
+    /var/lib/letsencrypt \
+    /var/log/letsencrypt
+sudo guix shell \
+    --container \
+    --emulate-fhs \
+    --no-cwd \
+    --network \
+    --share=/etc/letsencrypt \
+    --share=/var/lib/letsencrypt \
+    --share=/var/log/letsencrypt \
+    certbot \
+    nss-certs \
+    -- \
+    certbot certonly --standalone
+
