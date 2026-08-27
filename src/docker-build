@@ -1,17 +1,33 @@
 #!/usr/bin/env bash
 
 set -xe
-if [ $# -eq 0 ]; then
-    exit 1
+if [ $# -lt 1 ]; then
+    if [ -e Dockerfile ]; then
+        read -r _ DOCKER_TAG _ < Dockerfile
+    else
+        exit 1
+    fi
+else
+    DOCKER_TAG="$1"
 fi
-DOCKER_TAG="$1"
-if [ $# -eq 1 ]; then
+echo "Building $DOCKER_TAG..."
+if [ $# -lt 2 ]; then
     SYSTEM_FILEPATH=container.scm
 else
     SYSTEM_FILEPATH="$2"
 fi
-DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "$SYSTEM_FILEPATH" "${@:3}")
+DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "$SYSTEM_FILEPATH")
 docker load -i "$DOCKER_IMAGE_TARBALL_FILEPATH"
+SYSTEM_DIR_PATH=$(docker inspect --format="{{index .Config.Entrypoint 1}}" guix:latest)
+docker build -f - -t guix:latest . <<EOF
+FROM guix:latest
+RUN [ "$SYSTEM_DIR_PATH/activate" ]
+RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
+SHELL [ "/bin/sh", "--login", "-c" ]
+EOF
 docker tag guix:latest "$DOCKER_TAG"
 guix gc -D "$DOCKER_IMAGE_TARBALL_FILEPATH"
+if [ -e Dockerfile ]; then
+    docker build -t "$DOCKER_TAG" .
+fi
 

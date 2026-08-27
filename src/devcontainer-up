@@ -9,11 +9,6 @@ if [ $# -gt 0 ]; then
     QUICK_MODE=0
 else
     QUICK_MODE=1
-    if ! docker image inspect devcontainer-quick > /dev/null 2>&1; then
-        docker-build \
-            devcontainer-quick \
-            -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
-    fi
 fi
 if [ $QUICK_MODE -eq 0 ]; then
     VSCODE_SERVER_DIR_PATH=$(pwd)/.vscode-server
@@ -23,6 +18,11 @@ else
     VSCODE_SERVER_DIR_PATH=$HOME/.vscode-server
     WORKSPACE_DIR_HOST_PATH=$HOME/stuff/dev
     WORKSPACE_DIR_GUEST_PATH=/home/app/stuff/dev
+    if ! docker image inspect devcontainer-quick > /dev/null 2>&1; then
+        docker-build \
+            devcontainer-quick \
+            -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
+    fi
 fi
 mkdir -p $VSCODE_SERVER_DIR_PATH
 mkdir -p $WORKSPACE_DIR_HOST_PATH
