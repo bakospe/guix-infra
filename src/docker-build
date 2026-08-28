@@ -19,7 +19,7 @@ fi
 DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "$SYSTEM_FILEPATH" "${@:3}")
 docker load -i "$DOCKER_IMAGE_TARBALL_FILEPATH"
 SYSTEM_DIR_PATH=$(docker inspect --format="{{index .Config.Entrypoint 1}}" guix:latest)
-docker build -f - -t guix:latest . <<EOF
+docker build -t guix:latest - <<EOF
 FROM guix:latest
 RUN [ "$SYSTEM_DIR_PATH/activate" ]
 RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
