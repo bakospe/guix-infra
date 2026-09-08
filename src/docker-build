@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 
 set -xe
+cleanup() {
+    if [ -n "${DOCKER_IMAGE_TARBALL_FILEPATH:-}" ]; then
+        guix gc -D "$DOCKER_IMAGE_TARBALL_FILEPATH"
+    fi
+}
+trap cleanup EXIT INT TERM HUP
 if [ $# -lt 1 ]; then
     if [ -e Dockerfile ]; then
         read -r _ DOCKER_TAG _ < Dockerfile
@@ -26,7 +32,6 @@ RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
 SHELL [ "/bin/sh", "--login", "-c" ]
 EOF
 docker tag guix:latest "$DOCKER_TAG"
-guix gc -D "$DOCKER_IMAGE_TARBALL_FILEPATH"
 if [ -e Dockerfile ]; then
     docker build -t "$DOCKER_TAG" .
 fi
