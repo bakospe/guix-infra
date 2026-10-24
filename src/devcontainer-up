@@ -20,7 +20,8 @@ else
     WORKSPACE_DIR_GUEST_PATH=/home/app/stuff/dev
     if ! docker image inspect devcontainer-quick > /dev/null 2>&1; then
         docker-build \
-            devcontainer-quick \
+            --docker-tag devcontainer-quick \
+            --system-file "" \
             -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
     fi
 fi

@@ -7,31 +7,79 @@ cleanup() {
     fi
 }
 trap cleanup EXIT INT TERM HUP
-if [ $# -lt 1 ]; then
+get_docker_created() {
+    local CREATED
+    if CREATED=$(docker inspect --format="{{.Created}}" "$1" 2> /dev/null); then
+        date -d "$CREATED" +%s
+    else
+        echo 0
+    fi
+}
+DOCKER_TAG=
+SYSTEM_FILEPATH=container.scm
+FORCE_REBUILD=0
+REST_ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --docker-tag)
+            DOCKER_TAG="$2"
+            shift 2
+            ;;
+        --system-file)
+            SYSTEM_FILEPATH="$2"
+            shift 2
+            ;;
+        --force-rebuild)
+            FORCE_REBUILD=1
+            shift
+            ;;
+        *)
+            REST_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+if [ -z "$DOCKER_TAG" ]; then
     if [ -e Dockerfile ]; then
         read -r _ DOCKER_TAG _ < Dockerfile
     else
         exit 1
     fi
-else
-    DOCKER_TAG="$1"
 fi
-echo "Building $DOCKER_TAG..."
-if [ $# -lt 2 ]; then
-    SYSTEM_FILEPATH=container.scm
+if [[ "$DOCKER_TAG" == *:* ]]; then
+    STAGE1_TAG="${DOCKER_TAG%%:*}-stage1:${DOCKER_TAG#*:}"
 else
-    SYSTEM_FILEPATH="$2"
+    STAGE1_TAG="$DOCKER_TAG-stage1"
 fi
-DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "$SYSTEM_FILEPATH" "${@:3}")
-docker load -i "$DOCKER_IMAGE_TARBALL_FILEPATH"
-SYSTEM_DIR_PATH=$(docker inspect --format="{{index .Config.Entrypoint 1}}" guix:latest)
-docker build -t guix:latest - <<EOF
+if [ -z "$SYSTEM_FILEPATH" ]; then
+    SHALL_BUILD_STAGE1=1
+else
+    STAGE1_CREATED_AT=$(get_docker_created "$STAGE1_TAG")
+    SYSTEM_FILE_MODIFIED_AT=$(stat -c %Y -- "$SYSTEM_FILEPATH")
+    if [[
+        "$FORCE_REBUILD" == "1" ||
+        "$STAGE1_CREATED_AT" -le "$SYSTEM_FILE_MODIFIED_AT"
+    ]]; then
+        REST_ARGS=("$SYSTEM_FILEPATH" "${REST_ARGS[@]}")
+        SHALL_BUILD_STAGE1=1
+    else
+        SHALL_BUILD_STAGE1=0
+    fi
+fi
+echo "1/2 Building $STAGE1_TAG..."
+if [ "$SHALL_BUILD_STAGE1" == "1" ]; then
+    DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "${REST_ARGS[@]}")
+    docker load -i "$DOCKER_IMAGE_TARBALL_FILEPATH"
+    SYSTEM_DIR_PATH=$(docker inspect --format="{{index .Config.Entrypoint 1}}" guix:latest)
+    docker build -t "$STAGE1_TAG" - <<EOF
 FROM guix:latest
 RUN [ "$SYSTEM_DIR_PATH/activate" ]
 RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
 SHELL [ "/bin/sh", "--login", "-c" ]
 EOF
-docker tag guix:latest "$DOCKER_TAG"
+fi
+echo "2/2 Building $DOCKER_TAG..."
+docker tag "$STAGE1_TAG" "$DOCKER_TAG"
 if [ -e Dockerfile ]; then
     docker build -t "$DOCKER_TAG" .
 fi
