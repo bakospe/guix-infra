@@ -18,6 +18,7 @@ get_docker_created() {
 DOCKER_TAG=
 SYSTEM_FILEPATH=container.scm
 FORCE_REBUILD=0
+SKIP_STAGE2=0
 STAGE2_CONTEXT=.
 REST_ARGS=()
 while [ $# -gt 0 ]; do
@@ -32,6 +33,10 @@ while [ $# -gt 0 ]; do
             ;;
         --force-rebuild)
             FORCE_REBUILD=1
+            shift
+            ;;
+        --skip-stage2)
+            SKIP_STAGE2=1
             shift
             ;;
         --stage2-context)
@@ -85,7 +90,7 @@ EOF
 fi
 echo "2/2 Building $DOCKER_TAG..."
 docker tag "$STAGE1_TAG" "$DOCKER_TAG"
-if [ -e Dockerfile ]; then
+if [ "$SKIP_STAGE2" == "0" ] && [ -e Dockerfile ]; then
     docker build -t "$DOCKER_TAG" -f Dockerfile "$STAGE2_CONTEXT"
 fi
 
