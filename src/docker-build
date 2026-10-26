@@ -76,7 +76,7 @@ if [ "$SHALL_BUILD_STAGE1" == "1" ]; then
     DOCKER_IMAGE_TARBALL_FILEPATH=$(guix system image -t docker "${REST_ARGS[@]}")
     docker load -i "$DOCKER_IMAGE_TARBALL_FILEPATH"
     SYSTEM_DIR_PATH=$(docker inspect --format="{{index .Config.Entrypoint 1}}" guix:latest)
-    docker build -t "$STAGE1_TAG" - <<EOF
+    DOCKER_BUILDKIT=0 docker build -t "$STAGE1_TAG" - <<EOF
 FROM guix:latest
 RUN [ "$SYSTEM_DIR_PATH/activate" ]
 RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
