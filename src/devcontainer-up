@@ -25,6 +25,10 @@ else
             -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
     fi
 fi
+mkdir -p ~/.cache/opencode
+mkdir -p ~/.config/opencode
+mkdir -p ~/.local/share/opencode
+mkdir -p ~/.local/state/opencode
 mkdir -p $VSCODE_SERVER_DIR_PATH
 mkdir -p $WORKSPACE_DIR_HOST_PATH
 if [ ! -e ~/.gitconfig ]; then
@@ -33,12 +37,24 @@ fi
 if [ ! -e ~/.git-credentials ]; then
     touch ~/.git-credentials
 fi
+if [ ! -e ~/.config/opencode/cli.json ]; then
+    touch ~/.config/opencode/cli.json
+fi
+if [ ! -e ~/.config/opencode/opencode.jsonc ]; then
+    touch ~/.config/opencode/opencode.jsonc
+fi
 exec docker run \
     -it \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
     -v $PWD/authorized_keys:/home/app/.ssh/authorized_keys:ro \
     -v $HOME/.gitconfig:/home/app/.gitconfig:ro \
     -v $HOME/.git-credentials:/home/app/.git-credentials:ro \
+    -v $(realpath ~/.config/opencode/cli.json):$(realpath ~/.config/opencode/cli.json):ro \
+    -v $(realpath ~/.config/opencode/opencode.jsonc):$(realpath ~/.config/opencode/opencode.jsonc):ro \
+    -v $HOME/.cache/opencode:/home/app/.cache/opencode \
+    -v $HOME/.config/opencode:/home/app/.config/opencode \
+    -v $HOME/.local/share/opencode:/home/app/.local/share \
+    -v $HOME/.local/state/opencode:/home/app/.local/state/opencode \
     -v $VSCODE_SERVER_DIR_PATH:/home/app/.vscode-server \
     -v $WORKSPACE_DIR_HOST_PATH:$WORKSPACE_DIR_GUEST_PATH \
     -p $PORT:2222 \
