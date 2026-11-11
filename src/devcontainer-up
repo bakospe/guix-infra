@@ -38,6 +38,10 @@ Options:
 EOF
             exit
             ;;
+        *)
+            echo "Unknown argument: $1. Try --help"
+            exit 1
+            ;;
     esac
 done
 case "$PWD/" in
