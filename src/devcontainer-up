@@ -1,36 +1,73 @@
 #!/usr/bin/env bash
 
 set -xe
-PORT=${PORT:-2222}
-if [ ! -e authorized_keys ]; then
+PORT=2222
+DOCKER_TAG=devcontainer-quick
+AUTHORIZED_KEYS=$(pwd)/authorized_keys
+if [ ! -e $AUTHORIZED_KEYS ]; then
+    AUTHORIZED_KEYS=$HOME/stuff/dev/authorized_keys
+fi
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --port)
+            PORT="$2"
+            shift 2
+            ;;
+        --docker-tag)
+            DOCKER_TAG="$2"
+            shift 2
+            ;;
+        --authorized-keys)
+            AUTHORIZED_KEYS=$(realpath "$2")
+            shift 2
+            ;;
+        --help)
+            cat <<EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Run the devcontainer image and mount the current workspace into it.
+
+Options:
+  --port PORT              Host port forwarded to the container's SSH port
+                           (default: 2222)
+  --docker-tag TAG         Image tag to run (default: devcontainer-quick)
+  --authorized-keys PATH   authorized_keys file to mount
+                           (default: ./authorized_keys, falling back to
+                           ~/stuff/dev/authorized_keys)
+  --help                   Show this help message and exit
+EOF
+            exit
+            ;;
+    esac
+done
+case "$PWD/" in
+    "$HOME/stuff/dev/"*/*/) exit 1 ;;
+    "$HOME/stuff/dev/"*) ;;
+    *) exit 1 ;;
+esac
+if [ ! -e $AUTHORIZED_KEYS ]; then
     exit 1
 fi
-if [ $# -gt 0 ]; then
-    QUICK_MODE=0
-else
-    QUICK_MODE=1
-fi
-if [ $QUICK_MODE -eq 0 ]; then
-    VSCODE_SERVER_DIR_PATH=$(pwd)/.vscode-server
-    WORKSPACE_DIR_HOST_PATH=$(pwd)
-    WORKSPACE_DIR_GUEST_PATH=/home/app/stuff/dev/$(basename $WORKSPACE_DIR_HOST_PATH)
-else
+if [ "$DOCKER_TAG" = "devcontainer-quick" ]; then
     VSCODE_SERVER_DIR_PATH=$HOME/.vscode-server
-    WORKSPACE_DIR_HOST_PATH=$HOME/stuff/dev
-    WORKSPACE_DIR_GUEST_PATH=/home/app/stuff/dev
     if ! docker image inspect devcontainer-quick > /dev/null 2>&1; then
         docker-build \
             --docker-tag devcontainer-quick \
             --system-file "" \
             -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
     fi
+else
+    if [ "$PWD" = "$HOME/stuff/dev" ]; then
+        exit 1
+    fi
+    VSCODE_SERVER_DIR_PATH=$(pwd)/.vscode-server
 fi
+WORKSPACE_DIR_GUEST_PATH="/home/app${PWD#"$HOME"}"
 mkdir -p ~/.cache/opencode
 mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
 mkdir -p ~/.local/state/opencode
 mkdir -p $VSCODE_SERVER_DIR_PATH
-mkdir -p $WORKSPACE_DIR_HOST_PATH
 if [ ! -e ~/.gitconfig ]; then
     touch ~/.gitconfig
 fi
@@ -49,7 +86,7 @@ fi
 exec docker run \
     -it \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
-    -v $PWD/authorized_keys:/home/app/.ssh/authorized_keys:ro \
+    -v $AUTHORIZED_KEYS:/home/app/.ssh/authorized_keys:ro \
     -v $HOME/.gitconfig:/home/app/.gitconfig:ro \
     -v $HOME/.gitconfig.secret:/home/app/.gitconfig.secret:ro \
     -v $HOME/.git-credentials:/home/app/.git-credentials:ro \
@@ -60,9 +97,8 @@ exec docker run \
     -v $HOME/.local/share/opencode:/home/app/.local/share \
     -v $HOME/.local/state/opencode:/home/app/.local/state/opencode \
     -v $VSCODE_SERVER_DIR_PATH:/home/app/.vscode-server \
-    -v $WORKSPACE_DIR_HOST_PATH:$WORKSPACE_DIR_GUEST_PATH \
+    -v $PWD:$WORKSPACE_DIR_GUEST_PATH \
     -p $PORT:2222 \
     --rm \
-    "$@" \
-    $(if [ $QUICK_MODE -eq 1 ]; then echo devcontainer-quick; fi)
+    $DOCKER_TAG
 
