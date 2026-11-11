@@ -85,7 +85,9 @@ if [ "$SHALL_BUILD_STAGE1" == "1" ]; then
 FROM guix:latest
 RUN [ "$SYSTEM_DIR_PATH/activate" ]
 RUN $SYSTEM_DIR_PATH/profile/bin/ln -snf $SYSTEM_DIR_PATH /run/current-system
-SHELL [ "/bin/sh", "--login", "-c" ]
+SHELL [ "/bin/sh", "-lc" ]
+RUN mkdir /home/app && \
+    chown app:users /home/app
 EOF
 fi
 echo "2/2 Building $DOCKER_TAG..."
