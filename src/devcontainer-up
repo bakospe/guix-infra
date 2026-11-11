@@ -34,6 +34,9 @@ mkdir -p $WORKSPACE_DIR_HOST_PATH
 if [ ! -e ~/.gitconfig ]; then
     touch ~/.gitconfig
 fi
+if [ ! -e ~/.gitconfig.secret ]; then
+    touch ~/.gitconfig.secret
+fi
 if [ ! -e ~/.git-credentials ]; then
     touch ~/.git-credentials
 fi
@@ -48,6 +51,7 @@ exec docker run \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
     -v $PWD/authorized_keys:/home/app/.ssh/authorized_keys:ro \
     -v $HOME/.gitconfig:/home/app/.gitconfig:ro \
+    -v $HOME/.gitconfig.secret:/home/app/.gitconfig.secret:ro \
     -v $HOME/.git-credentials:/home/app/.git-credentials:ro \
     -v $(realpath ~/.config/opencode/cli.json):$(realpath ~/.config/opencode/cli.json):ro \
     -v $(realpath ~/.config/opencode/opencode.jsonc):$(realpath ~/.config/opencode/opencode.jsonc):ro \
