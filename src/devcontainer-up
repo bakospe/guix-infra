@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -xe
+SECURE=0
 PORT=2222
 DOCKER_TAG=devcontainer-quick
 AUTHORIZED_KEYS=$(pwd)/authorized_keys
@@ -9,6 +10,10 @@ if [ ! -e $AUTHORIZED_KEYS ]; then
 fi
 while [ $# -gt 0 ]; do
     case "$1" in
+        --secure)
+            SECURE=1
+            shift 1
+            ;;
         --port)
             PORT="$2"
             shift 2
@@ -28,6 +33,7 @@ Usage: $(basename "$0") [OPTIONS]
 Run the devcontainer image and mount the current workspace into it.
 
 Options:
+  --secure                 Do not mount secrets into the container
   --port PORT              Host port forwarded to the container's SSH port
                            (default: 2222)
   --docker-tag TAG         Image tag to run (default: devcontainer-quick)
@@ -75,11 +81,13 @@ mkdir -p $VSCODE_SERVER_DIR_PATH
 if [ ! -e ~/.gitconfig ]; then
     touch ~/.gitconfig
 fi
-if [ ! -e ~/.gitconfig.secret ]; then
-    touch ~/.gitconfig.secret
-fi
-if [ ! -e ~/.git-credentials ]; then
-    touch ~/.git-credentials
+if [ "$SECURE" != 1 ]; then
+    if [ ! -e ~/.gitconfig.secret ]; then
+        touch ~/.gitconfig.secret
+    fi
+    if [ ! -e ~/.git-credentials ]; then
+        touch ~/.git-credentials
+    fi
 fi
 if [ ! -e ~/.config/opencode/cli.json ]; then
     touch ~/.config/opencode/cli.json
@@ -92,8 +100,8 @@ exec docker run \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
     -v $AUTHORIZED_KEYS:/home/app/.ssh/authorized_keys:ro \
     -v $HOME/.gitconfig:/home/app/.gitconfig:ro \
-    -v $HOME/.gitconfig.secret:/home/app/.gitconfig.secret:ro \
-    -v $HOME/.git-credentials:/home/app/.git-credentials:ro \
+    $(if [ "$SECURE" != 1 ]; then echo "-v $HOME/.gitconfig.secret:/home/app/.gitconfig.secret:ro"; fi) \
+    $(if [ "$SECURE" != 1 ]; then echo "-v $HOME/.git-credentials:/home/app/.git-credentials:ro"; fi) \
     -v $(realpath ~/.config/opencode/cli.json):$(realpath ~/.config/opencode/cli.json):ro \
     -v $(realpath ~/.config/opencode/opencode.jsonc):$(realpath ~/.config/opencode/opencode.jsonc):ro \
     -v $HOME/.cache/opencode:/home/app/.cache/opencode \
