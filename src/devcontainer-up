@@ -95,6 +95,20 @@ fi
 if [ ! -e ~/.config/opencode/opencode.jsonc ]; then
     touch ~/.config/opencode/opencode.jsonc
 fi
+SECURITY_MOUNTS=()
+if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
+    for root in . $(git submodule status --recursive | awk "{ print \$2 }"); do
+        prefix="${root#./}"
+        prefix="${prefix:+$prefix/}"
+        while IFS= read -r -d "" path; do
+            if [ "${path: -1}" = / ]; then
+                SECURITY_MOUNTS+=(--tmpfs "$WORKSPACE_DIR_GUEST_PATH/$prefix${path%/}")
+            else
+                SECURITY_MOUNTS+=(-v "/dev/null:$WORKSPACE_DIR_GUEST_PATH/$prefix$path")
+            fi
+        done < <(git -C "$root" ls-files -z --others --ignored --exclude-standard --directory)
+    done
+fi
 exec docker run \
     -it \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
@@ -110,6 +124,7 @@ exec docker run \
     -v $HOME/.local/state/opencode:/home/app/.local/state/opencode \
     -v $VSCODE_SERVER_DIR_PATH:/home/app/.vscode-server \
     -v $PWD:$WORKSPACE_DIR_GUEST_PATH \
+    "${SECURITY_MOUNTS[@]}" \
     -p $PORT:2222 \
     --rm \
     $DOCKER_TAG
