@@ -97,12 +97,14 @@ if [ ! -e ~/.config/opencode/opencode.jsonc ]; then
 fi
 SECURITY_MOUNTS=()
 if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
-    for root in . $(git submodule status --recursive | awk "{ print \$2 }"); do
+    readarray -t roots < <(git submodule foreach --recursive --quiet 'printf "%s\n" "$sm_path"')
+    for root in . "${roots[@]}"; do
+        [ -e "$root/.git" ] || continue
         prefix="${root#./}"
         prefix="${prefix:+$prefix/}"
         while IFS= read -r -d "" path; do
             if [ "${path: -1}" = / ]; then
-                SECURITY_MOUNTS+=(--tmpfs "$WORKSPACE_DIR_GUEST_PATH/$prefix${path%/}")
+                SECURITY_MOUNTS+=(--tmpfs "$WORKSPACE_DIR_GUEST_PATH/$prefix${path%/}:size=1")
             else
                 SECURITY_MOUNTS+=(-v "/dev/null:$WORKSPACE_DIR_GUEST_PATH/$prefix$path")
             fi
