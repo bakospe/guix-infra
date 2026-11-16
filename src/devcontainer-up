@@ -8,6 +8,11 @@ AUTHORIZED_KEYS=$(pwd)/authorized_keys
 if [ ! -e $AUTHORIZED_KEYS ]; then
     AUTHORIZED_KEYS=$HOME/stuff/dev/authorized_keys
 fi
+VSCODE_SERVER=$(pwd)/.vscode-server
+if [ ! -e $VSCODE_SERVER ]; then
+    VSCODE_SERVER=$HOME/.vscode-server
+fi
+REST_ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --secure)
@@ -26,6 +31,10 @@ while [ $# -gt 0 ]; do
             AUTHORIZED_KEYS=$(realpath "$2")
             shift 2
             ;;
+        --vscode-server)
+            VSCODE_SERVER=$(realpath "$2")
+            shift 2
+            ;;
         --help)
             cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -40,13 +49,18 @@ Options:
   --authorized-keys PATH   authorized_keys file to mount
                            (default: ./authorized_keys, falling back to
                            ~/stuff/dev/authorized_keys)
+  --vscode-server PATH     vscode-server directory to mount
+                           (default: ./.vscode-server, falling back to
+                           ~/.vscode-server)
   --help                   Show this help message and exit
+
+Extra arguments are passed to docker run.
 EOF
             exit
             ;;
         *)
-            echo "Unknown argument: $1. Try --help"
-            exit 1
+            REST_ARGS+=("$1")
+            shift
             ;;
     esac
 done
@@ -59,25 +73,21 @@ if [ ! -e $AUTHORIZED_KEYS ]; then
     exit 1
 fi
 if [ "$DOCKER_TAG" = "devcontainer-quick" ]; then
-    VSCODE_SERVER_DIR_PATH=$HOME/.vscode-server
     if ! docker image inspect devcontainer-quick > /dev/null 2>&1; then
         docker-build \
             --docker-tag devcontainer-quick \
             --system-file "" \
             -e "(@ (suika-chan systems guix-infra) devcontainer-quick-operating-system)"
     fi
-else
-    if [ "$PWD" = "$HOME/stuff/dev" ]; then
-        exit 1
-    fi
-    VSCODE_SERVER_DIR_PATH=$(pwd)/.vscode-server
+elif [ "$PWD" = "$HOME/stuff/dev" ]; then
+    exit 1
 fi
 WORKSPACE_DIR_GUEST_PATH="/home/app${PWD#"$HOME"}"
 mkdir -p ~/.cache/opencode
 mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
 mkdir -p ~/.local/state/opencode
-mkdir -p $VSCODE_SERVER_DIR_PATH
+mkdir -p $VSCODE_SERVER
 if [ ! -e ~/.gitconfig ]; then
     touch ~/.gitconfig
 fi
@@ -101,6 +111,9 @@ if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
     for root in . "${roots[@]}"; do
         [ -e "$root/.git" ] || continue
         prefix="${root#./}"
+        if [ "$prefix" = "." ]; then
+            prefix=""
+        fi
         prefix="${prefix:+$prefix/}"
         while IFS= read -r -d "" path; do
             if [ "${path: -1}" = / ]; then
@@ -124,10 +137,11 @@ exec docker run \
     -v $HOME/.config/opencode:/home/app/.config/opencode \
     -v $HOME/.local/share/opencode:/home/app/.local/share \
     -v $HOME/.local/state/opencode:/home/app/.local/state/opencode \
-    -v $VSCODE_SERVER_DIR_PATH:/home/app/.vscode-server \
+    -v $VSCODE_SERVER:/home/app/.vscode-server \
     -v $PWD:$WORKSPACE_DIR_GUEST_PATH \
     "${SECURITY_MOUNTS[@]}" \
     -p $PORT:2222 \
     --rm \
+    "${REST_ARGS[@]}" \
     $DOCKER_TAG
 
