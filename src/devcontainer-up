@@ -94,6 +94,7 @@ elif [ "$PWD" = "$HOME/stuff/dev" ]; then
     exit 1
 fi
 WORKSPACE_DIR_GUEST_PATH="/home/app${PWD#"$HOME"}"
+mkdir -p ~/.copilot
 mkdir -p ~/.cache/opencode
 mkdir -p ~/.config/opencode
 mkdir -p ~/.local/share/opencode
@@ -110,11 +111,17 @@ if [ "$SECURE" != 1 ]; then
         touch ~/.git-credentials
     fi
 fi
+if [ ! -e ~/.copilot/copilot-instructions.md ]; then
+    touch ~/.copilot/copilot-instructions.md
+fi
 if [ ! -e ~/.config/opencode/cli.json ]; then
     touch ~/.config/opencode/cli.json
 fi
 if [ ! -e ~/.config/opencode/opencode.jsonc ]; then
     touch ~/.config/opencode/opencode.jsonc
+fi
+if [ ! -e ~/.config/opencode/AGENTS.md ]; then
+    touch ~/.config/opencode/AGENTS.md
 fi
 SHADOW_MOUNT_CANDS=("${DEFAULT_EXTRA_SHADOW_MOUNTS[@]}" "${EXTRA_SHADOW_MOUNTS[@]}")
 if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
@@ -151,8 +158,10 @@ exec docker run \
     -v $HOME/.gitconfig:/home/app/.gitconfig:ro \
     $(if [ "$SECURE" != 1 ]; then echo "-v $HOME/.gitconfig.secret:/home/app/.gitconfig.secret:ro"; fi) \
     $(if [ "$SECURE" != 1 ]; then echo "-v $HOME/.git-credentials:/home/app/.git-credentials:ro"; fi) \
-    -v $(realpath ~/.config/opencode/cli.json):$(realpath ~/.config/opencode/cli.json):ro \
-    -v $(realpath ~/.config/opencode/opencode.jsonc):$(realpath ~/.config/opencode/opencode.jsonc):ro \
+    -v $HOME/.config/opencode/cli.json:/home/app/.config/opencode/cli.json:ro \
+    -v $HOME/.config/opencode/opencode.jsonc:/home/app/.config/opencode/opencode.jsonc:ro \
+    -v $HOME/.config/opencode/AGENTS.md:/home/app/.config/opencode/AGENTS.md:ro \
+    -v $HOME/.copilot/copilot-instructions.md:/home/app/.copilot/copilot-instructions.md:ro \
     -v $HOME/.cache/opencode:/home/app/.cache/opencode \
     -v $HOME/.config/opencode:/home/app/.config/opencode \
     -v $HOME/.local/share/opencode:/home/app/.local/share \
