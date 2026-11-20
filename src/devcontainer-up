@@ -12,6 +12,8 @@ VSCODE_SERVER=$(pwd)/.vscode-server
 if [ ! -e $VSCODE_SERVER ]; then
     VSCODE_SERVER=$HOME/.vscode-server
 fi
+DEFAULT_EXTRA_SHADOW_MOUNTS=(.vscode-server)
+EXTRA_SHADOW_MOUNTS=()
 REST_ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -35,6 +37,13 @@ while [ $# -gt 0 ]; do
             VSCODE_SERVER=$(realpath "$2")
             shift 2
             ;;
+        --shadow)
+            DEFAULT_EXTRA_SHADOW_MOUNTS=()
+            if [ -n "$2" ]; then
+                EXTRA_SHADOW_MOUNTS+=("$2")
+            fi
+            shift 2
+            ;;
         --help)
             cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -52,6 +61,8 @@ Options:
   --vscode-server PATH     vscode-server directory to mount
                            (default: ./.vscode-server, falling back to
                            ~/.vscode-server)
+  --shadow PATH            Shadow-mount PATH instead of the default,
+                           may be repeated or empty
   --help                   Show this help message and exit
 
 Extra arguments are passed to docker run.
@@ -105,7 +116,7 @@ fi
 if [ ! -e ~/.config/opencode/opencode.jsonc ]; then
     touch ~/.config/opencode/opencode.jsonc
 fi
-SECURITY_MOUNTS=()
+SHADOW_MOUNT_CANDS=("${DEFAULT_EXTRA_SHADOW_MOUNTS[@]}" "${EXTRA_SHADOW_MOUNTS[@]}")
 if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
     readarray -t roots < <(git submodule foreach --recursive --quiet 'printf "%s\n" "$sm_path"')
     for root in . "${roots[@]}"; do
@@ -116,14 +127,23 @@ if [ "$SECURE" = 1 ] && [ "$PWD" != "$HOME/stuff/dev" ] && [ -e .git ]; then
         fi
         prefix="${prefix:+$prefix/}"
         while IFS= read -r -d "" path; do
-            if [ "${path: -1}" = / ]; then
-                SECURITY_MOUNTS+=(--tmpfs "$WORKSPACE_DIR_GUEST_PATH/$prefix${path%/}:size=1")
-            else
-                SECURITY_MOUNTS+=(-v "/dev/null:$WORKSPACE_DIR_GUEST_PATH/$prefix$path")
-            fi
+            SHADOW_MOUNT_CANDS+=("$prefix$path")
         done < <(git -C "$root" ls-files -z --others --ignored --exclude-standard --directory)
     done
 fi
+SHADOW_MOUNTS=()
+for cand in "${SHADOW_MOUNT_CANDS[@]}"; do
+    cand="${cand%/}"
+    [ -e "$cand" ] || continue
+    cand=$(realpath "$cand")
+    [ "${cand#"$PWD"/}" != "$cand" ] || continue
+    cand="${cand#"$PWD"/}"
+    if [ -d "$cand" ]; then
+        SHADOW_MOUNTS+=(--tmpfs "$WORKSPACE_DIR_GUEST_PATH/$cand:size=1")
+    else
+        SHADOW_MOUNTS+=(-v "/dev/null:$WORKSPACE_DIR_GUEST_PATH/$cand")
+    fi
+done
 exec docker run \
     -it \
     -v /etc/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key:ro \
@@ -139,7 +159,7 @@ exec docker run \
     -v $HOME/.local/state/opencode:/home/app/.local/state/opencode \
     -v $VSCODE_SERVER:/home/app/.vscode-server \
     -v $PWD:$WORKSPACE_DIR_GUEST_PATH \
-    "${SECURITY_MOUNTS[@]}" \
+    "${SHADOW_MOUNTS[@]}" \
     -p $PORT:2222 \
     --rm \
     "${REST_ARGS[@]}" \
