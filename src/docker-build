@@ -91,7 +91,7 @@ RUN mkdir /home/app && \
 EOF
     DOCKER_BUILDKIT=0 docker build -t "$STAGE1_TAG" - <<EOF
 FROM guix:latest
-$(docker run --rm --entrypoint /bin/sh guix:latest -lc "printenv | sort" | sed "s/^/ENV /")
+ENV $(docker run --rm --entrypoint /bin/sh guix:latest -lc printenv | sort | paste -sd " ")
 EOF
 fi
 echo "2/2 Building $DOCKER_TAG..."
